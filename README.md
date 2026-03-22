@@ -35,10 +35,12 @@ jenkins-shared-library/
 
 ## 🧠 Design Pattern
 
-- vars/ → Public API (simple pipeline steps)
-- src/ → Internal implementation (classes, logic)
+This shared library follows a clean separation of concerns:
 
-This follows Jenkins Shared Library best practices.
+- vars/ → Public API (simple callable pipeline steps)
+- src/ → Internal implementation (structured classes and logic)
+
+This approach aligns with Jenkins Shared Library best practices and improves maintainability and scalability.
 
 ---
 
@@ -56,7 +58,7 @@ Then use in your Jenkinsfile:
 
 ---
 
-### Option 2 — Load Dynamically
+### Option 2 — Load Dynamically (Project-level Control)
 
 library(
     identifier: 'jenkins-shared-library@main',
@@ -75,6 +77,10 @@ library(
 
 pipeline {
     agent any
+
+    tools {
+        maven 'Maven3.9'
+    }
 
     environment {
         APP_DIR    = 'app'
@@ -103,9 +109,9 @@ pipeline {
 
 Ensure Jenkins has the following credentials configured:
 
-- Docker Hub credentials
-  Type: Username/Password
-  ID: dockerhub-creds
+- Docker Hub credentials  
+  Type: Username/Password  
+  ID: dockerhub-creds  
 
 ---
 
@@ -120,18 +126,62 @@ Ensure Jenkins has the following credentials configured:
 
 ---
 
+## 🧩 Shared Library Design Decision
+
+Initially, the Jenkins Shared Library was created as a nested folder within the main project repository:
+
+https://github.com/younghadiz/devops-and-cloud-projects-lab/tree/main/02_labs/phase-03/08_jenkins/jenkins-shared-library
+
+While this structure worked for learning purposes, it introduced some limitations:
+
+- It required configuration through Jenkins Global Pipeline Libraries
+- It made dynamic library loading (library(...)) difficult
+- It limited flexibility in controlling which projects could use the library
+- It was less scalable for larger teams and multi-project environments
+
+To address these limitations, the shared library was refactored into a separate repository:
+
+https://github.com/younghadiz/jenkins-shared-library
+
+---
+
+## 🚀 Benefits of the Separate Shared Library
+
+- Enables dynamic loading of the library per project using library(...)
+- Provides better access control (project-level vs global)
+- Improves scalability for multi-service and multi-team environments
+- Aligns with industry best practices for CI/CD architecture
+- Simplifies reuse across different repositories and pipelines
+
+---
+
+## 🧠 Learning Approach
+
+The nested shared library is still retained in the original repository for:
+
+- Reference and revision
+- Tutorial continuity
+- Understanding the evolution from simple to production-ready architecture
+
+This demonstrates a progression from:
+
+Learning-focused structure → Production-ready design
+
+---
+
 ## 🧩 Future Improvements
 
-- Add image scanning (Trivy)
-- Add Helm/Kubernetes deployment
-- Add version tagging strategy
+- Add image security scanning (Trivy)
+- Add Kubernetes/Helm deployment stages
+- Implement versioned shared library releases (v1.0.0, v1.1.0)
 - Support multiple registries (ECR, Nexus)
+- Add pipeline testing strategies
 
 ---
 
 ## 👨‍💻 Author
 
-Gafari Salaudeen (younghadiz) 
+Gafari Salaudeen
 
 ---
 
