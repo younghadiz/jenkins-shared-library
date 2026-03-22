@@ -181,7 +181,7 @@ Learning-focused structure → Production-ready design
 
 ## 👨‍💻 Author
 
-Gafari Salaudeen
+Gafari Salaudeen (younghadiz)
 
 ---
 
