@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+
+# Logs
+*.log
+
+# Temp files
+*.tmp
+*.swp
+
+# OS files
+Thumbs.db
+
+# Build artifacts
+target/
+build/
+
+# Environment files
+.env
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
