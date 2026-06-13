@@ -1,3 +1,4 @@
+```groovy
 package com.younghadiz.devops
 
 class Docker implements Serializable {
@@ -20,6 +21,14 @@ class Docker implements Serializable {
             script.echo "Building the application for branch ${script.env.BRANCH_NAME}"
             script.echo "Registry type selected: ${registryType}"
             script.echo "Docker image tag: ${tag}"
+
+            if (!imageName?.trim() || imageName == 'null' || imageName.contains('null')) {
+                script.error "Docker imageName is empty or invalid. Received: ${imageName}"
+            }
+
+            if (!tag?.trim()) {
+                script.error "Docker image tag is empty."
+            }
 
             if (registryType == 'dockerhub') {
                 buildAndPushToDockerHub(
@@ -53,11 +62,28 @@ class Docker implements Serializable {
             usernameVariable: 'USER',
             passwordVariable: 'PASS'
         )]) {
-            script.sh """
-                docker build -t ${imageName}:${tag} .
-                echo "\$PASS" | docker login -u "\$USER" --password-stdin
-                docker push ${imageName}:${tag}
-            """
+            script.withEnv([
+                "IMAGE_NAME=${imageName}",
+                "IMAGE_TAG=${tag}"
+            ]) {
+                script.sh '''
+                    set -e
+
+                    command -v docker >/dev/null 2>&1 || {
+                        echo "ERROR: Docker is not available inside Jenkins container."
+                        exit 1
+                    }
+
+                    echo "Building Docker image for Docker Hub..."
+                    docker build -t "$IMAGE_NAME:$IMAGE_TAG" .
+
+                    echo "Logging in to Docker Hub..."
+                    echo "$PASS" | docker login -u "$USER" --password-stdin
+
+                    echo "Pushing Docker image to Docker Hub..."
+                    docker push "$IMAGE_NAME:$IMAGE_TAG"
+                '''
+            }
         }
     }
 
@@ -69,16 +95,16 @@ class Docker implements Serializable {
         String ecrRegistryServer
     ) {
         if (!awsRegion?.trim()) {
-            script.error "awsRegion is required when registryType is 'ecr'. Pass it from Jenkinsfile environment, for example env.AWS_REGION."
+            script.error "awsRegion is required when registryType is 'ecr'."
         }
 
         if (!ecrRegistryServer?.trim()) {
-            script.error "ecrRegistryServer is required when registryType is 'ecr'. Pass it from Jenkinsfile environment."
+            script.error "ecrRegistryServer is required when registryType is 'ecr'."
         }
 
         script.echo "Logging in to AWS ECR using credentials ID: ${credentialsId}"
-        script.echo "AWS region provided from Jenkins credentials."
-        script.echo "ECR registry server provided from Jenkins credentials."
+        script.echo "AWS region provided."
+        script.echo "ECR registry server provided."
 
         script.withCredentials([script.usernamePassword(
             credentialsId: credentialsId,
@@ -86,16 +112,35 @@ class Docker implements Serializable {
             passwordVariable: 'AWS_SECRET_ACCESS_KEY'
         )]) {
             script.withEnv([
-                "AWS_DEFAULT_REGION=${awsRegion}",
-                "AWS_REGION=${awsRegion}"
+                "IMAGE_NAME=${imageName}",
+                "IMAGE_TAG=${tag}",
+                "AWS_REGION_VALUE=${awsRegion}",
+                "ECR_REGISTRY_SERVER_VALUE=${ecrRegistryServer}"
             ]) {
-                script.sh """
-                    aws ecr get-login-password --region ${awsRegion} | docker login --username AWS --password-stdin ${ecrRegistryServer}
+                script.sh '''
+                    set -e
 
-                    docker build -t ${imageName}:${tag} .
-                    docker push ${imageName}:${tag}
-                """
+                    command -v aws >/dev/null 2>&1 || {
+                        echo "ERROR: AWS CLI is not installed inside Jenkins container."
+                        exit 1
+                    }
+
+                    command -v docker >/dev/null 2>&1 || {
+                        echo "ERROR: Docker is not available inside Jenkins container."
+                        exit 1
+                    }
+
+                    echo "Logging in to AWS ECR..."
+                    aws ecr get-login-password --region "$AWS_REGION_VALUE" | docker login --username AWS --password-stdin "$ECR_REGISTRY_SERVER_VALUE"
+
+                    echo "Building Docker image for AWS ECR..."
+                    docker build -t "$IMAGE_NAME:$IMAGE_TAG" .
+
+                    echo "Pushing Docker image to AWS ECR..."
+                    docker push "$IMAGE_NAME:$IMAGE_TAG"
+                '''
             }
         }
     }
 }
+```
