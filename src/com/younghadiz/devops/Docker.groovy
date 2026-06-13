@@ -1,4 +1,3 @@
-```groovy
 package com.younghadiz.devops
 
 class Docker implements Serializable {
@@ -142,5 +141,5 @@ class Docker implements Serializable {
             }
         }
     }
+
 }
-```
