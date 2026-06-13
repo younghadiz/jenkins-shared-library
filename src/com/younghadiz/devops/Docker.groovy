@@ -19,7 +19,7 @@ class Docker implements Serializable {
         script.dir(appDir) {
             script.echo "Building the application for branch ${script.env.BRANCH_NAME}"
             script.echo "Registry type selected: ${registryType}"
-            script.echo "Image: ${imageName}:${tag}"
+            script.echo "Docker image tag: ${tag}"
 
             if (registryType == 'dockerhub') {
                 buildAndPushToDockerHub(
@@ -73,12 +73,12 @@ class Docker implements Serializable {
         }
 
         if (!ecrRegistryServer?.trim()) {
-            script.error "ecrRegistryServer is required when registryType is 'ecr'. Example: 330673547330.dkr.ecr.ca-central-1.amazonaws.com"
+            script.error "ecrRegistryServer is required when registryType is 'ecr'. Pass it from Jenkinsfile environment."
         }
 
         script.echo "Logging in to AWS ECR using credentials ID: ${credentialsId}"
-        script.echo "AWS region: ${awsRegion}"
-        script.echo "ECR registry server: ${ecrRegistryServer}"
+        script.echo "AWS region provided from Jenkins credentials."
+        script.echo "ECR registry server provided from Jenkins credentials."
 
         script.withCredentials([script.usernamePassword(
             credentialsId: credentialsId,
