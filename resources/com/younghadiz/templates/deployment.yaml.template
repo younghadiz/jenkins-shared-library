@@ -1,0 +1,27 @@
+# Reference Kubernetes deployment template.
+#
+# Application repositories should normally maintain their own
+# Kubernetes manifests.
+#
+# This file is provided as a reusable reference for future projects
+# that choose to load templates from the Jenkins Shared Library.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${APP_NAME}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${APP_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${APP_NAME}
+    spec:
+      containers:
+        - name: ${APP_NAME}
+          image: ${IMAGE_NAME}:${IMAGE_TAG}
+          ports:
+            - containerPort: 8080

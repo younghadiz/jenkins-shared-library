@@ -1,587 +1,560 @@
-# Jenkins Shared Library 🚀
+# Jenkins Shared Library
 
-This repository contains a reusable Jenkins Shared Library designed to standardize CI/CD pipelines across multiple projects.
+Reusable Jenkins Shared Library for standardizing CI/CD workflows across application repositories.
 
-It provides common pipeline functions for building Java applications, building Docker images, authenticating with container registries, and pushing images to either Docker Hub or AWS Elastic Container Registry (ECR).
+The library provides reusable pipeline orchestration and helper functions for Maven builds, Docker image creation, Docker Hub and Amazon ECR publishing, Kubernetes deployment to Amazon EKS, application version management, and automated Git version commits.
 
----
+## Features
 
-## 📦 Repository Structure
+- Reusable single-service CI/CD pipeline
+- Maven application build and packaging
+- Automated Maven version increment
+- Docker image build
+- Docker Hub authentication and image push
+- Amazon ECR authentication and image push
+- Kubernetes deployment to Amazon EKS
+- Kubernetes rollout verification
+- Automated Git version commit
+- Jenkins Multibranch Pipeline support
+- Jenkins Ignore Committer Strategy compatibility
+- Configurable Jenkins credential IDs
+- Reusable Groovy utility classes
+- Separation between pipeline orchestration and implementation logic
+
+## Repository Structure
 
 ```text
 jenkins-shared-library/
-├── vars/                         # Global pipeline steps (public entry points)
-│   ├── buildJar.groovy
-│   └── buildImage.groovy
+├── vars/
+│   ├── singleServicePipeline.groovy
+│   ├── multiServicePipeline.groovy
+│   ├── incrementVersion.groovy
+│   ├── buildMaven.groovy
+│   ├── buildDockerImage.groovy
+│   ├── pushToDockerHub.groovy
+│   ├── pushToEcr.groovy
+│   ├── deployToEks.groovy
+│   └── commitVersion.groovy
 │
-├── src/                          # Reusable classes (internal implementation logic)
+├── src/
 │   └── com/younghadiz/devops/
-│       └── Docker.groovy
+│       ├── PipelineConfig.groovy
+│       ├── DockerUtils.groovy
+│       ├── AwsUtils.groovy
+│       └── KubernetesUtils.groovy
 │
-├── README.md
-└── .gitignore
+├── resources/
+│   └── com/younghadiz/templates/
+│       └── deployment.yaml.template
+│
+├── test/
+│   └── README.md
+│
+├── .gitignore
+└── README.md
 ```
 
----
+## Architecture
 
-## ⚙️ Features
-
-* Build Java applications using Maven
-* Build Docker images
-* Push images to Docker Hub
-* Push images to AWS ECR
-* Dynamic registry selection using `registryType`
-* Reusable `buildJar()` pipeline step
-* Reusable `buildImage()` pipeline step
-* Supports Docker Hub credentials
-* Supports AWS ECR credentials
-* Supports project-level dynamic library loading
-* Clean separation of pipeline entry points and internal implementation logic
-* Designed for multi-project CI/CD reuse
-
----
-
-## 🧠 Design Pattern
-
-This shared library follows a clean separation of concerns:
+The library separates Jenkins-facing pipeline functions from reusable implementation classes.
 
 ```text
-vars/ → Public API used directly inside Jenkinsfiles
-src/  → Internal implementation using reusable Groovy classes
+Application Repository
+        │
+        │ Jenkinsfile
+        ▼
+Jenkins Shared Library
+        │
+        ▼
+singleServicePipeline(...)
+        │
+        ├── Increment Version
+        │      └── incrementVersion()
+        │
+        ├── Build Application
+        │      └── buildMaven()
+        │
+        ├── Build Docker Image
+        │      └── buildDockerImage()
+        │             └── DockerUtils
+        │
+        ├── Push Docker Image
+        │      ├── pushToEcr()
+        │      │      └── AwsUtils
+        │      │
+        │      └── pushToDockerHub()
+        │             └── DockerUtils
+        │
+        ├── Deploy
+        │      └── deployToEks()
+        │             └── KubernetesUtils
+        │
+        └── Commit Version Update
+               └── commitVersion()
 ```
 
-### Example
+The `vars/` directory contains functions available directly to Jenkins pipelines.
 
-The Jenkinsfile calls:
+The `src/` directory contains reusable implementation classes used internally by those functions.
 
-```groovy
-buildImage(...)
-```
+The `resources/` directory contains reusable reference resources. Application-specific Kubernetes manifests should normally remain in the application repository.
 
-The `vars/buildImage.groovy` file receives the call and passes the parameters to:
+## Single-Service Pipeline
+
+`singleServicePipeline()` provides the primary pipeline orchestration for a repository containing one deployable application.
+
+The pipeline runs the following stages:
 
 ```text
-src/com/younghadiz/devops/Docker.groovy
-```
-
-This approach keeps Jenkinsfiles clean while allowing more advanced CI/CD logic to live in structured Groovy classes.
-
----
-
-## 🚀 Usage
-
-### Option 1 — Global Library
-
-Register this repository in Jenkins:
-
-```text
-Manage Jenkins
-↓
-System
-↓
-Global Pipeline Libraries
-```
-
-Then use it in your Jenkinsfile:
-
-```groovy
-@Library('jenkins-shared-library') _
-```
-
----
-
-### Option 2 — Load Dynamically
-
-This is the preferred approach when each project should control which shared library version or branch it uses.
-
-```groovy
-library(
-  identifier: 'jenkins-shared-library@master',
-  retriever: modernSCM([
-      $class: 'GitSCMSource',
-      remote: 'https://github.com/younghadiz/jenkins-shared-library.git',
-      credentialsId: 'github-token'
-  ])
-)
-```
-
-This approach gives better project-level control and avoids depending only on Jenkins global configuration.
-
----
-
-## 🛠 Available Shared Library Steps
-
-### `buildJar`
-
-Builds a Java Maven application.
-
-```groovy
-buildJar(APP_DIR)
-```
-
-Example:
-
-```groovy
-stage('Build Jar') {
-    steps {
-        buildJar(APP_DIR)
-    }
-}
-```
-
-The default command is:
-
-```bash
-mvn clean package
-```
-
----
-
-### `buildImage`
-
-Builds and pushes a Docker image to either Docker Hub or AWS ECR.
-
-```groovy
-buildImage(
-    appDir,
-    imageName,
-    imageTag,
-    registryType,
-    credentialsId,
-    awsRegion,
-    ecrRegistryServer
-)
-```
-
-### Parameters
-
-| Parameter           | Description                                       |
-| ------------------- | ------------------------------------------------- |
-| `appDir`            | Application directory where the Dockerfile exists |
-| `imageName`         | Full image name or repository URL                 |
-| `imageTag`          | Docker image tag                                  |
-| `registryType`      | Registry type: `dockerhub` or `ecr`               |
-| `credentialsId`     | Jenkins credential ID                             |
-| `awsRegion`         | AWS region, required for ECR                      |
-| `ecrRegistryServer` | ECR registry server, required for ECR             |
-
----
-
-## 🐳 Docker Hub Example
-
-### Jenkinsfile Environment
-
-```groovy
-environment {
-    APP_DIR = 'app'
-
-    REGISTRY_TYPE = 'dockerhub'
-
-    DOCKERHUB_IMAGE_NAME = 'yourdockerhubuser/java-app'
-    DOCKERHUB_CREDS      = 'dockerhub-creds'
-
-    IMAGE_NAME = "${DOCKERHUB_IMAGE_NAME}"
-    IMAGE_TAG  = "1.0.${env.BUILD_NUMBER}"
-}
-```
-
-### Jenkinsfile Stage
-
-```groovy
-stage('Build & Push Image') {
-    steps {
-        buildImage(
-            env.APP_DIR,
-            env.IMAGE_NAME,
-            env.IMAGE_TAG,
-            env.REGISTRY_TYPE,
-            env.DOCKERHUB_CREDS
-        )
-    }
-}
-```
-
-This will run the Docker Hub flow:
-
-```text
-docker build
-docker login to Docker Hub
-docker push to Docker Hub
-```
-
----
-
-## ☁️ AWS ECR Example
-
-### Jenkinsfile Environment
-
-```groovy
-environment {
-    APP_DIR = 'app'
-
-    REGISTRY_TYPE = 'ecr'
-
-    AWS_REGION          = 'ca-central-1'
-    ECR_REGISTRY_SERVER = '330673547330.dkr.ecr.ca-central-1.amazonaws.com'
-    ECR_REPOSITORY      = 'java-maven-app'
-    ECR_IMAGE_NAME      = "${ECR_REGISTRY_SERVER}/${ECR_REPOSITORY}"
-    ECR_CREDS           = 'aws_ecr_creds'
-
-    IMAGE_NAME = "${ECR_IMAGE_NAME}"
-    IMAGE_TAG  = "1.0.${env.BUILD_NUMBER}"
-}
-```
-
-### Jenkinsfile Stage
-
-```groovy
-stage('Build & Push Image') {
-    steps {
-        buildImage(
-            env.APP_DIR,
-            env.IMAGE_NAME,
-            env.IMAGE_TAG,
-            env.REGISTRY_TYPE,
-            env.ECR_CREDS,
-            env.AWS_REGION,
-            env.ECR_REGISTRY_SERVER
-        )
-    }
-}
-```
-
-This will run the ECR flow:
-
-```text
-docker build
-aws ecr get-login-password
-docker login to ECR
-docker push to ECR
-```
-
----
-
-## 🧪 Full Example Jenkinsfile
-
-```groovy
-library(
-  identifier: 'jenkins-shared-library@master',
-  retriever: modernSCM([
-      $class: 'GitSCMSource',
-      remote: 'https://github.com/younghadiz/jenkins-shared-library.git',
-      credentialsId: 'github-token'
-  ])
-)
-
-pipeline {
-    agent any
-
-    tools {
-        maven 'Maven3.9'
-    }
-
-    environment {
-        APP_DIR = 'app'
-
-        /*
-          Registry options:
-          dockerhub = push image to Docker Hub
-          ecr       = push image to AWS ECR
-        */
-        REGISTRY_TYPE = 'ecr'
-
-        /*
-          Docker Hub configuration
-        */
-        DOCKERHUB_IMAGE_NAME = 'younghadiz/java-maven-app'
-        DOCKERHUB_CREDS      = 'dockerhub-creds'
-
-        /*
-          AWS ECR configuration
-        */
-        AWS_REGION          = 'ca-central-1'
-        ECR_REGISTRY_SERVER = '330673547330.dkr.ecr.ca-central-1.amazonaws.com'
-        ECR_REPOSITORY      = 'java-maven-app'
-        ECR_IMAGE_NAME      = "${ECR_REGISTRY_SERVER}/${ECR_REPOSITORY}"
-        ECR_CREDS           = 'aws_ecr_creds'
-
-        IMAGE_NAME = ''
-        IMAGE_TAG  = "1.0.${env.BUILD_NUMBER}"
-    }
-
-    stages {
-        stage('Select Image Repository') {
-            steps {
-                script {
-                    if (env.REGISTRY_TYPE == 'ecr') {
-                        env.IMAGE_NAME = env.ECR_IMAGE_NAME
-                    } else if (env.REGISTRY_TYPE == 'dockerhub') {
-                        env.IMAGE_NAME = env.DOCKERHUB_IMAGE_NAME
-                    } else {
-                        error "Unsupported REGISTRY_TYPE: ${env.REGISTRY_TYPE}. Use 'dockerhub' or 'ecr'."
-                    }
-
-                    echo "Registry type: ${env.REGISTRY_TYPE}"
-                    echo "Image name: ${env.IMAGE_NAME}"
-                    echo "Image tag: ${env.IMAGE_TAG}"
-                }
-            }
-        }
-
-        stage('Build Jar') {
-            steps {
-                buildJar(env.APP_DIR)
-            }
-        }
-
-        stage('Build & Push Image') {
-            steps {
-                script {
-                    def selectedCredentialsId = env.REGISTRY_TYPE == 'ecr'
-                        ? env.ECR_CREDS
-                        : env.DOCKERHUB_CREDS
-
-                    buildImage(
-                        env.APP_DIR,
-                        env.IMAGE_NAME,
-                        env.IMAGE_TAG,
-                        env.REGISTRY_TYPE,
-                        selectedCredentialsId,
-                        env.AWS_REGION,
-                        env.ECR_REGISTRY_SERVER
-                    )
-                }
-            }
-        }
-    }
-
-    post {
-        always {
-            echo 'Pipeline finished'
-        }
-        success {
-            echo 'Pipeline succeeded'
-        }
-        failure {
-            echo 'Pipeline failed'
-        }
-    }
-}
-```
-
----
-
-## 🔐 Jenkins Credentials
-
-Ensure Jenkins has the required credentials configured.
-
-### GitHub Credential
-
-Used to load the shared library dynamically.
-
-```text
-Kind: Username with password or Personal Access Token
-ID: github-token
-Purpose: Access GitHub repository
-```
-
----
-
-### Docker Hub Credential
-
-Used when `REGISTRY_TYPE = 'dockerhub'`.
-
-```text
-Kind: Username with password
-ID: dockerhub-creds
-Username: Docker Hub username
-Password: Docker Hub password or access token
-```
-
----
-
-### AWS ECR Credential
-
-Used when `REGISTRY_TYPE = 'ecr'`.
-
-```text
-Kind: Username with password
-ID: aws_ecr_creds
-Username: AWS Access Key ID
-Password: AWS Secret Access Key
-```
-
-The shared library maps this credential internally as:
-
-```groovy
-usernameVariable: 'AWS_ACCESS_KEY_ID'
-passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-```
-
-Then it uses:
-
-```bash
-aws ecr get-login-password
-```
-
-to authenticate Docker to ECR.
-
----
-
-## 📌 Requirements
-
-Jenkins agent must have:
-
-* Jenkins Pipeline Plugin
-* Jenkins Credentials Plugin
-* Jenkins Git Plugin
-* Docker installed
-* Maven configured in Jenkins
-* AWS CLI installed, required for ECR
-* Network access to Docker Hub or AWS ECR
-
-For AWS ECR usage, the AWS IAM user or role must have permissions such as:
-
-```text
-ecr:GetAuthorizationToken
-ecr:BatchCheckLayerAvailability
-ecr:CompleteLayerUpload
-ecr:UploadLayerPart
-ecr:InitiateLayerUpload
-ecr:PutImage
-ecr:BatchGetImage
-```
-
----
-
-## 🧩 Shared Library Design Decision
-
-Initially, the Jenkins Shared Library was created as a nested folder inside the main project repository:
-
-```text
-devops-and-cloud-projects-lab/
-└── 02_labs/phase-03/08_jenkins/jenkins-shared-library
-```
-
-While this structure worked for learning purposes, it introduced limitations:
-
-* It required more dependency on Jenkins Global Pipeline Library configuration
-* It made dynamic library loading with `library(...)` less flexible
-* It reduced project-level control
-* It was less scalable for multi-project environments
-* It mixed reusable CI/CD logic with one learning repository
-
-To improve this, the shared library was refactored into a separate repository:
-
-```text
-https://github.com/younghadiz/jenkins-shared-library
-```
-
----
-
-## 🚀 Benefits of the Separate Shared Library
-
-* Enables dynamic loading of the library per project using `library(...)`
-* Provides better project-level control
-* Improves scalability for multiple services and repositories
-* Aligns with real-world CI/CD architecture
-* Simplifies reuse across different Jenkins pipelines
-* Allows shared library updates without changing every project repository
-* Separates reusable pipeline logic from application code
-
----
-
-## 🧠 Learning Approach
-
-The nested shared library is still retained in the original repository for:
-
-* Reference and revision
-* Tutorial continuity
-* Understanding the evolution from simple CI/CD scripts to reusable shared libraries
-
-This demonstrates a progression from:
-
-```text
-Learning-focused pipeline logic
+Increment Version
         ↓
-Reusable Jenkins shared library
+Build Application
         ↓
-Production-style CI/CD architecture
+Build Docker Image
+        ↓
+Push Docker Image
+        ↓
+Deploy
+        ↓
+Commit Version Update
 ```
 
----
-
-## 🏗 Current Architecture
+The pipeline supports either:
 
 ```text
-Jenkinsfile
-   ↓
-vars/buildJar.groovy
-   ↓
-mvn clean package
-```
-
-```text
-Jenkinsfile
-   ↓
-vars/buildImage.groovy
-   ↓
-src/com/younghadiz/devops/Docker.groovy
-   ↓
-Docker Hub or AWS ECR
-```
-
-The Jenkinsfile decides:
-
-```text
-REGISTRY_TYPE = dockerhub
+registryType: 'ecr'
 ```
 
 or:
 
 ```text
-REGISTRY_TYPE = ecr
+registryType: 'dockerhub'
 ```
 
-The shared library then runs the correct build, login, and push logic.
+Registry values are normalized to lowercase before evaluation.
 
----
+## Example Jenkinsfile
 
-## ✅ Current Supported Registry Types
+An application repository can keep its Jenkinsfile small by delegating the pipeline implementation to this library.
 
-| Registry Type             |             Status | Credential ID Example |
-| ------------------------- | -----------------: | --------------------- |
-| Docker Hub                |          Supported | `dockerhub-creds`     |
-| AWS ECR                   |          Supported | `aws_ecr_creds`       |
-| Nexus Repository          | Future improvement | `nexus-creds`         |
-| GitHub Container Registry | Future improvement | `ghcr-creds`          |
+```groovy
+@Library('jenkins-shared-library') _
 
----
+singleServicePipeline(
+    appDir: '.',
+    manifestDir: 'kubernetes',
+    appName: 'java-maven-app',
 
-## 🧩 Future Improvements
+    registryType: 'ecr',
 
-* Add Trivy image security scanning
-* Add Kubernetes deployment helper
-* Add Helm deployment helper
-* Add rollback helper
-* Add support for GitHub Container Registry, GHCR
-* Add support for Nexus Docker registry
-* Add support for semantic versioning
-* Add unit testing for shared library logic
-* Implement versioned shared library releases such as `v1.0.0`, `v1.1.0`
-* Add branch-based registry selection
-* Add multi-environment deployment support for dev, staging, and production
+    imageName: '<aws-account-id>.dkr.ecr.ca-central-1.amazonaws.com/java-maven-app',
 
----
+    awsRegion: 'ca-central-1',
+    ecrRegistryServer: '<aws-account-id>.dkr.ecr.ca-central-1.amazonaws.com',
 
-## 👨‍💻 Author
+    ecrCredentialsId: 'aws_ecr_creds',
+    gitCredentialsId: 'github-token',
 
-Gafari Salaudeen
+    repositoryUrl: 'https://github.com/<github-user>/<repository>.git',
+
+    namespace: 'default'
+)
+```
+
+Replace placeholder values with the configuration for the consuming application.
+
+The `imageName` used with ECR should be the complete ECR repository URI:
+
+```text
+<aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com/<repository-name>
+```
+
+The `ecrRegistryServer` contains only the registry server:
+
+```text
+<aws-account-id>.dkr.ecr.<aws-region>.amazonaws.com
+```
+
+## Pipeline Configuration
+
+| Parameter | Required | Default | Description |
+| --- | --- | --- | --- |
+| `appDir` | No | `.` | Application directory |
+| `manifestDir` | No | `kubernetes` | Kubernetes manifest directory |
+| `appName` | Yes | — | Application and Kubernetes Deployment name |
+| `registryType` | No | `ecr` | Container registry: `ecr` or `dockerhub` |
+| `imageName` | Yes | — | Complete Docker image/repository name |
+| `awsRegion` | ECR only | — | AWS region |
+| `ecrRegistryServer` | ECR only | — | Amazon ECR registry server |
+| `ecrCredentialsId` | No | `aws_ecr_creds` | Jenkins AWS credential ID |
+| `dockerHubCredentialsId` | No | `dockerhub-creds` | Jenkins Docker Hub credential ID |
+| `gitCredentialsId` | No | `github-token` | Jenkins Git credential ID |
+| `repositoryUrl` | Yes | — | Git repository URL used for version commit push |
+| `namespace` | No | `default` | Kubernetes namespace |
+
+## Version Management
+
+`incrementVersion()` uses Maven Build Helper and Versions plugins to increment the application's incremental version.
+
+Conceptually:
+
+```text
+1.1.0-SNAPSHOT
+      ↓
+parse Maven version
+      ↓
+increment incremental component
+      ↓
+1.1.1
+```
+
+The pipeline then combines the application version with the Jenkins build number:
+
+```text
+<application-version>-<jenkins-build-number>
+```
+
+For example:
+
+```text
+1.1.1-42
+```
+
+This value becomes the Docker image tag for that pipeline execution.
+
+## Maven Build
+
+`buildMaven()` runs the Maven build for the application.
+
+Default command:
+
+```bash
+mvn clean package
+```
+
+A different Maven command can be supplied when required.
+
+Example:
+
+```groovy
+buildMaven(
+    '.',
+    'mvn clean package'
+)
+```
+
+## Docker Image Build
+
+`buildDockerImage()` builds the container image independently from registry authentication and image publishing.
+
+Example:
+
+```groovy
+buildDockerImage(
+    '.',
+    'example/java-maven-app',
+    '1.1.1-42'
+)
+```
+
+The implementation is provided by:
+
+```text
+src/com/younghadiz/devops/DockerUtils.groovy
+```
+
+Separating the build and push operations allows Jenkins to expose them as independent pipeline stages.
+
+## Docker Hub
+
+`pushToDockerHub()` authenticates with Docker Hub using Jenkins credentials and pushes an already-built image.
+
+Example:
+
+```groovy
+pushToDockerHub(
+    'example/java-maven-app',
+    '1.1.1-42',
+    'dockerhub-creds'
+)
+```
+
+The Jenkins credential is expected to provide a username and password or access token.
+
+## Amazon ECR
+
+`pushToEcr()` authenticates Docker to Amazon ECR and pushes an already-built image.
+
+Example:
+
+```groovy
+pushToEcr(
+    '<aws-account-id>.dkr.ecr.ca-central-1.amazonaws.com/java-maven-app',
+    '1.1.1-42',
+    'ca-central-1',
+    '<aws-account-id>.dkr.ecr.ca-central-1.amazonaws.com',
+    'aws_ecr_creds'
+)
+```
+
+Authentication uses:
+
+```bash
+aws ecr get-login-password
+```
+
+followed by Docker registry authentication.
+
+The AWS credentials are supplied by Jenkins Credentials and are not stored in the repository.
+
+## Amazon EKS Deployment
+
+`deployToEks()` deploys application-owned Kubernetes manifests.
+
+Expected application repository structure:
+
+```text
+application-repository/
+├── Jenkinsfile
+├── Dockerfile
+├── pom.xml
+└── kubernetes/
+    ├── deployment.yaml
+    └── service.yaml
+```
+
+Example:
+
+```groovy
+deployToEks(
+    '.',
+    'kubernetes',
+    'java-maven-app',
+    '<aws-account-id>.dkr.ecr.ca-central-1.amazonaws.com/java-maven-app',
+    '1.1.1-42',
+    'default'
+)
+```
+
+The deployment helper:
+
+1. Verifies that `kubectl` is available.
+2. Verifies that `envsubst` is available.
+3. Verifies that the deployment and service manifests exist.
+4. Substitutes environment variables into the manifests.
+5. Applies the Deployment.
+6. Applies the Service.
+7. Waits for the Kubernetes Deployment rollout to complete.
+
+Application manifests can reference:
+
+```text
+${APP_NAME}
+${IMAGE_NAME}
+${IMAGE_TAG}
+```
+
+The Jenkins environment must already be authenticated to the target EKS cluster.
+
+## Git Version Commit
+
+After a successful deployment, `commitVersion()` commits the updated Maven version.
+
+The helper stages only:
+
+```text
+pom.xml
+```
+
+This prevents unrelated workspace changes from being included in the automated version commit.
+
+The default Jenkins Git identity is:
+
+```text
+jenkins <jenkins@example.com>
+```
+
+The version commit is pushed using the configured Jenkins Git credentials without permanently embedding the credential in the repository remote URL.
+
+## Jenkins Multibranch and Version-Commit Loop Prevention
+
+A Multibranch Pipeline may receive another SCM event when Jenkins pushes the automated version commit.
+
+The intended flow is:
+
+```text
+Developer Commit
+      ↓
+SCM Event
+      ↓
+Jenkins Multibranch Pipeline
+      ↓
+CI/CD Pipeline
+      ↓
+Jenkins Version Commit
+      ↓
+SCM Event
+      ↓
+Ignore Committer Strategy
+      ↓
+Jenkins-generated commit ignored
+```
+
+The Jenkins-generated commit uses:
+
+```text
+jenkins@example.com
+```
+
+When the Jenkins Ignore Committer Strategy is configured to ignore this committer, automated version commits can be excluded from triggering another application build.
+
+This prevents the version-update stage from creating a continuous CI loop while allowing normal developer commits to trigger the pipeline.
+
+The exact Jenkins build-strategy configuration is managed on the Jenkins controller rather than in this repository.
+
+## Multi-Service Pipeline
+
+`multiServicePipeline()` is reserved for repositories containing multiple independently buildable or deployable services, for example:
+
+```text
+services/
+├── frontend/
+├── backend/
+└── worker/
+```
+
+The multi-service implementation is intentionally not enabled yet.
+
+Single-application repositories should use:
+
+```groovy
+singleServicePipeline(...)
+```
+
+Keeping the two entry points separate prevents multi-service requirements from adding unnecessary complexity to single-service pipelines.
+
+## Jenkins Credentials
+
+Secrets must be stored in Jenkins Credentials and must not be committed to application or shared-library repositories.
+
+Typical credential IDs used by this library are:
+
+| Credential ID | Purpose |
+| --- | --- |
+| `github-token` | Push automated Git version commits |
+| `dockerhub-creds` | Authenticate to Docker Hub |
+| `aws_ecr_creds` | Authenticate AWS CLI for Amazon ECR |
+
+Credential IDs are references only. Actual usernames, passwords, tokens, access keys, and secret keys must remain in Jenkins.
+
+For the current AWS credential implementation, Jenkins provides the configured username/password values to the AWS CLI environment as:
+
+```text
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+```
+
+Use a dedicated AWS identity with only the permissions required by the pipeline.
+
+## Jenkins Agent Requirements
+
+Depending on the enabled pipeline stages, the Jenkins agent requires:
+
+- Git
+- Java
+- Maven
+- Docker CLI with access to a Docker daemon
+- AWS CLI for Amazon ECR and EKS workflows
+- `kubectl`
+- `envsubst`
+- Network access to the configured Git provider
+- Network access to the configured container registry
+- Network access to the target Kubernetes API server
+
+The Maven tool used by `singleServicePipeline()` is currently expected to be configured in Jenkins with the name:
+
+```text
+Maven
+```
+
+## Kubernetes Reference Template
+
+The repository contains:
+
+```text
+resources/com/younghadiz/templates/deployment.yaml.template
+```
+
+This is a reusable reference template.
+
+The current deployment helper does not automatically load this template. Application-specific Kubernetes manifests should normally remain with the application source code so that application and deployment changes can be versioned together.
+
+## Testing
+
+The library currently relies on integration validation through consuming Jenkins pipelines.
+
+Automated shared-library unit testing is not implemented yet.
+
+See:
+
+```text
+test/README.md
+```
+
+for the current testing scope.
+
+## Security
+
+The library follows these repository security rules:
+
+- Never commit AWS access keys or secret access keys.
+- Never commit GitHub or GitLab tokens.
+- Never commit Docker Hub passwords or access tokens.
+- Never commit kubeconfig files containing sensitive cluster access data.
+- Never commit private SSH keys.
+- Store pipeline secrets in Jenkins Credentials.
+- Reference credentials by Jenkins credential ID.
+- Use dedicated CI/CD identities instead of personal credentials where practical.
+- Apply least-privilege permissions to AWS and Git identities.
+
+## Current Scope
+
+The current library focuses on a readable CI/CD workflow for:
+
+```text
+Java + Maven
+      ↓
+Docker
+      ↓
+Docker Hub or Amazon ECR
+      ↓
+Amazon EKS / Kubernetes
+      ↓
+Git version update
+```
+
+The implementation intentionally avoids introducing unrelated deployment frameworks or infrastructure tooling into the shared-library API.
+
+## Future Improvements
+
+Potential extensions include:
+
+- Jenkins Pipeline Unit tests
+- Versioned shared-library releases
+- Additional container registries
+- Multi-service pipeline implementation
+- Additional deployment strategies
+- Automated rollback helpers
+- Container security scanning
+- Multi-environment deployment support
+- Additional Kubernetes deployment abstractions
+- Short-lived or workload-based cloud authentication where supported
+
+These improvements can be introduced as project requirements grow without changing the core separation between pipeline entry points and reusable implementation classes.
+
+## Author
+
+**Gafari Salaudeen**
+
 GitHub: `younghadiz`
-Gitlab: `younghadiz`
-
----
-
-## 📜 License
-
-This project is for learning, DevOps best practices, and portfolio demonstration purposes.
+GitLab: `younghadiz`
