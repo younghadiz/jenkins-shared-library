@@ -155,14 +155,27 @@ def call(Map config = [:]) {
             stage('Deploy') {
                 steps {
                     script {
-                        deployToEks(
-                            appDir,
-                            manifestDir,
-                            appName,
-                            imageName,
-                            env.IMAGE_TAG,
-                            namespace
-                        )
+                        withCredentials([
+                            usernamePassword(
+                                credentialsId: ecrCredentialsId,
+                                usernameVariable: 'AWS_ACCESS_KEY_ID',
+                                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                            )
+                        ]) {
+                            withEnv([
+                                "AWS_DEFAULT_REGION=${awsRegion}",
+                                "AWS_REGION=${awsRegion}"
+                            ]) {
+                                deployToEks(
+                                    appDir,
+                                    manifestDir,
+                                    appName,
+                                    imageName,
+                                    env.IMAGE_TAG,
+                                    namespace
+                                )
+                            }
+                        }
                     }
                 }
             }
